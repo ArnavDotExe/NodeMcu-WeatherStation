@@ -1,65 +1,83 @@
+// Include the correct display library
+// For a connection via I2C using Wire include
+#include <Wire.h>
+#include "SSD1306.h"
 #define BLYNK_PRINT Serial
- 
- 
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
-#include <DHT.h>
- 
+
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
-char auth[] = "";
- 
+char auth[] = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+
 // Your WiFi credentials.
 // Set password to "" for open networks.
-char ssid[] = "";
-char pass[] = "";
- 
-#define DHTPIN 0          // D3
- 
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11     // DHT 11
-//#define DHTTYPE DHT22   // DHT 22, AM2302, AM2321
-//#define DHTTYPE DHT21   // DHT 21, AM2301
- 
+char ssid[] = "XXXX";
+char pass[] = "XXXXXX";
+
+#include <DHT.h>
+#define DHTPIN 4     // what pin we're connected to
+#define DHTTYPE DHT11   // DHT 11
+
+// Initialize the OLED display i2C
+// D3 -> SDA
+// D5 -> SCL
+// Initialize the OLED display using Wire library
+
+SSD1306  display(0x3C, D3, D5);
 DHT dht(DHTPIN, DHTTYPE);
 BlynkTimer timer;
- 
-// This function sends Arduino's up time every second to Virtual Pin (5).
-// In the app, Widget's reading frequency should be set to PUSH. This means
-// that you define how often to send data to Blynk App.
+void setup(){
+  Serial.begin(115200);
+  // Initialising the UI will init the display too.
+  display.init();
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_16);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  dht.begin(); // initialize dht
+  Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 8080);
+  timer.setInterval(1000L, sendSensor);
+}
+
+void displayWeather(){ //Creating a function to read and display temperature and humidity on OLED display
+  float h = dht.readHumidity();
+  // Read temperature as Celsius
+  float t = dht.readTemperature();
+  // Read temperature as Fahrenheit
+  float f = dht.readTemperature(true);
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t) || isnan(f)){
+    display.clear(); // clearing the display
+    display.drawString(5,0, "DHT Failed!");
+    return;
+  }
+  display.clear();
+  display.drawString(30, 0, "Weather");
+  display.drawString(0, 20, "Humidity: " + String(h) + "%\t");
+  display.drawString(0, 40, "Temp: " + String(t) + "°C");
+
+  //Uncomment to get temperature in farenheit
+  //display.drawString(0, 40, "Temp: " + String(f) + "°F");
+}
+
+void loop(){
+  Blynk.run(); // Running the blynk code
+  displayWeather(); //Calling back the displayWeather function
+  display.display();
+  timer.run();
+}
+
 void sendSensor()
 {
-  float h = dht.readHumidity();
+  float h = dht.readHumidity();  //Read the humidity
   float t = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
- 
   if (isnan(h) || isnan(t)) {
     Serial.println("Failed to read from DHT sensor!");
     return;
   }
   // You can send any value at any time.
   // Please don't send more that 10 values per second.
-  Blynk.virtualWrite(V5, t);
-  Blynk.virtualWrite(V6, h);
+  Blynk.virtualWrite(V5, h);
+  Blynk.virtualWrite(V6, t);
 }
- 
-void setup()
-{
-  // Debug console
-  Serial.begin(9600);
- 
-  Blynk.begin(auth, ssid, pass);
-  // You can also specify server:
-  //Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 8442);
-  //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8442);
- 
-  dht.begin();
- 
-  // Setup a function to be called every second
-  timer.setInterval(1000L, sendSensor);
-}
- 
-void loop()
-{
-  Blynk.run();
-  timer.run();
-}
+
